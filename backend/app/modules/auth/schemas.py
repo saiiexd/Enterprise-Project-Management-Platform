@@ -13,9 +13,28 @@ class OrganizationOut(BaseModel):
         from_attributes = True
 
 
+class RoleOut(BaseModel):
+    id: uuid.UUID
+    name: str
+    description: str | None = None
+
+    class Config:
+        from_attributes = True
+
+
+class PermissionOut(BaseModel):
+    id: uuid.UUID
+    name: str
+    description: str | None = None
+
+    class Config:
+        from_attributes = True
+
+
 class UserOrganizationOut(BaseModel):
     organization: OrganizationOut
-    role: str
+    role_name: str
+    role: RoleOut | None = None
 
     class Config:
         from_attributes = True
@@ -37,8 +56,12 @@ class UserOut(BaseModel):
     id: uuid.UUID
     email: EmailStr
     full_name: str | None = None
+    provider: str
+    profile_image_url: str | None = None
     is_active: bool
+    is_verified: bool
     is_superuser: bool
+    account_status: bool | str  # Accept bool or str during transition
     created_at: datetime
 
     class Config:
@@ -66,3 +89,20 @@ class TokenPayload(BaseModel):
 
 class TokenRefresh(BaseModel):
     refresh_token: str
+
+
+class VerifyEmailPayload(BaseModel):
+    token: str
+
+
+class ForgotPasswordPayload(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordPayload(BaseModel):
+    token: str
+    new_password: str = Field(..., min_length=8, max_length=100)
+
+
+class OAuthCallbackPayload(BaseModel):
+    code: str

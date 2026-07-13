@@ -11,8 +11,8 @@ from app.modules.auth.models import User
 from app.modules.auth.security import ALGORITHM
 from app.modules.auth.services import get_user_by_email
 from app.modules.organizations.models import Organization
+from app.services.redis_service import redis_service
 
-# Token URL points to the login route
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login")
 
 
@@ -24,6 +24,11 @@ async def get_current_user(
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+
+    # 1. Verify token is not blacklisted in Redis
+    if await redis_service.is_token_blacklisted(token):
+        raise credentials_exception
+
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[ALGORITHM])
         token_type: str = payload.get("type", "")
@@ -51,14 +56,23 @@ async def get_current_active_user(
     return current_user
 
 
+async def get_verified_user(
+    current_user: User = Depends(get_current_active_user),
+) -> User:
+    if not current_user.is_verified:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Please verify your email address to access this feature.",
+        )
+    return current_user
+
+
 async def get_current_organization(
     request: Request, current_user: User = Depends(get_current_active_user)
 ) -> Organization:
-    # 1. Look for organization ID in header
     org_id_str = request.headers.get("X-Organization-ID")
 
     if not org_id_str:
-        # Fallback to the first organization membership if header is missing
         if not current_user.organizations:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -74,13 +88,53 @@ async def get_current_organization(
             detail="Invalid X-Organization-ID header format. Must be UUID.",
         )
 
-    # Verify membership
     for user_org in current_user.organizations:
         if user_org.organization_id == org_uuid:
             return user_org.organization
 
-    # If the user is active but doesn't belong to the requested organization, deny access
     raise HTTPException(
         status_code=status.HTTP_403_FORBIDDEN,
         detail="Access to this organization's data is denied.",
     )
+
+
+# Reusable permission dependency creator
+def requires_permission(permission_name: str):
+    async def permission_dependency(
+        current_user: User = Depends(get_current_active_user),
+        org: Organization = Depends(get_current_organization),
+    ) -> None:
+        if current_user.is_superuser:
+            return
+
+        for user_org in current_user.organizations:
+            if user_org.organization_id == org.id:
+                if user_org.role_name == "owner":
+                    return
+                # Check actual role permission tables
+                if user_org.role and user_org.role.permissions:
+                    for perm in user_org.role.permissions:
+                        if perm.name == permission_name:
+                            return
+
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"You do not have the required permission: {permission_name}",
+        )
+
+    return permission_dependency
+
+
+# Rate limit dependency creator
+def check_rate_limit(limit: int, window: int):
+    async def rate_limiter(request: Request) -> None:
+        client_ip = request.client.host if request.client else "unknown"
+        path = request.url.path
+        key = f"{client_ip}:{path}"
+        if not await redis_service.rate_limit_check(key, limit, window):
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Too many requests. Please slow down.",
+            )
+
+    return rate_limiter

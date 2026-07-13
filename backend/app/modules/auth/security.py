@@ -48,3 +48,17 @@ def create_refresh_token(
     to_encode = {"exp": expire, "sub": str(subject), "type": "refresh"}
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
+
+
+def create_verification_token(email: str) -> str:
+    # Valid for 24 hours
+    expire = datetime.now(UTC) + timedelta(hours=24)
+    to_encode = {"exp": expire, "sub": email, "type": "email_verification"}
+    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=ALGORITHM)
+
+
+def create_reset_token(email: str) -> str:
+    # Valid for 1 hour
+    expire = datetime.now(UTC) + timedelta(hours=1)
+    to_encode = {"exp": expire, "sub": email, "type": "password_reset"}
+    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=ALGORITHM)
