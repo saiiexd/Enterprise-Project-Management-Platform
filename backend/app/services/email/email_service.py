@@ -60,5 +60,22 @@ class EmailService:
         """
         self.send_email(to_email, subject, html_content)
 
+    def send_invitation_email(self, to_email: str, org_name: str, token: str) -> None:
+        invitation_link = f"http://localhost:3000/register?token={token}"
+        subject = f"You have been invited to join {org_name} on EPMP"
+        html_content = f"""
+        <html>
+            <body>
+                <h2>Invitation to join {org_name}</h2>
+                <p>You have been invited to join the organization <strong>{org_name}</strong> on the Enterprise Project Management Platform.</p>
+                <p>Click the link below to accept the invitation and get started:</p>
+                <p><a href="{invitation_link}">Join {org_name}</a></p>
+                <p>This invitation link will expire in 7 days.</p>
+            </body>
+        </html>
+        """
+        self.send_email(to_email, subject, html_content)
+
 
 email_service = EmailService()
+

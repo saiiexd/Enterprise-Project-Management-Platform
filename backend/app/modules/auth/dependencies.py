@@ -10,10 +10,11 @@ from app.core.database import get_db
 from app.modules.auth.models import User
 from app.modules.auth.security import ALGORITHM
 from app.modules.auth.services import get_user_by_email
-from app.modules.organizations.models import Organization
+from app.modules.organizations.models import Organization, OrganizationMember
 from app.services.redis_service import redis_service
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login")
+
 
 
 async def get_current_user(
@@ -109,7 +110,7 @@ def requires_permission(permission_name: str):
 
         for user_org in current_user.organizations:
             if user_org.organization_id == org.id:
-                if user_org.role_name == "owner":
+                if user_org.role_name.lower() in ("owner", "organization owner"):
                     return
                 # Check actual role permission tables
                 if user_org.role and user_org.role.permissions:

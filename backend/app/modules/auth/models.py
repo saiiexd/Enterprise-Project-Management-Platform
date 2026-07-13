@@ -45,28 +45,10 @@ class Permission(EnterpriseBaseModel):
     )
 
 
-class UserOrganization(Base):
-    __tablename__ = "user_organization"
+from typing import TYPE_CHECKING
 
-    user_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("user.id", ondelete="CASCADE"), primary_key=True
-    )
-    organization_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey("organization.id", ondelete="CASCADE"),
-        primary_key=True,
-    )
-    role_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("role.id", ondelete="SET NULL"), nullable=True
-    )
-    role_name: Mapped[str] = mapped_column(String(50), default="member", nullable=False)
-
-    # Relationships
-    user: Mapped["User"] = relationship("User", back_populates="organizations")
-    organization: Mapped["Organization"] = relationship(
-        "Organization", back_populates="users"
-    )
-    role: Mapped[Role | None] = relationship("Role")
+if TYPE_CHECKING:
+    from app.modules.organizations.models import OrganizationMember
 
 
 class User(EnterpriseBaseModel):
@@ -97,9 +79,10 @@ class User(EnterpriseBaseModel):
     )
 
     # Relationships
-    organizations: Mapped[list[UserOrganization]] = relationship(
-        "UserOrganization", back_populates="user", cascade="all, delete-orphan"
+    organizations: Mapped[list["OrganizationMember"]] = relationship(
+        "OrganizationMember", back_populates="user", cascade="all, delete-orphan"
     )
 
 
-from app.modules.organizations.models import Organization  # noqa: F401
+from app.modules.organizations.models import Organization, OrganizationMember  # noqa: F401
+

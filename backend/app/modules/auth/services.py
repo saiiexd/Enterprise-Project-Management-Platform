@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.config import settings
-from app.modules.auth.models import User, UserOrganization
+from app.modules.auth.models import User, Role
 from app.modules.auth.schemas import UserRegister
 from app.modules.auth.security import (
     ALGORITHM,
@@ -17,7 +17,7 @@ from app.modules.auth.security import (
     get_password_hash,
     verify_password,
 )
-from app.modules.organizations.models import Organization
+from app.modules.organizations.models import Organization, OrganizationMember
 from app.services.email.email_service import email_service
 
 logger = logging.getLogger("epmp.auth_service")
@@ -35,7 +35,8 @@ async def get_user_by_email(db: AsyncSession, email: str) -> User | None:
         select(User)
         .where(User.email == email)
         .options(
-            selectinload(User.organizations).selectinload(UserOrganization.organization)
+            selectinload(User.organizations).selectinload(OrganizationMember.organization),
+            selectinload(User.organizations).selectinload(OrganizationMember.role).selectinload(Role.permissions)
         )
     )
     result = await db.execute(stmt)
@@ -74,10 +75,25 @@ async def register_user(db: AsyncSession, register_data: UserRegister) -> User:
     db.add(user)
     await db.flush()
 
-    user_org = UserOrganization(
-        user_id=user.id, organization_id=org.id, role_name="owner"
+    # Fetch owner role
+    stmt_role = select(Role).where(Role.name == "Organization Owner")
+    res_role = await db.execute(stmt_role)
+    owner_role = res_role.scalar_one_or_none()
+    role_id = owner_role.id if owner_role else None
+    role_name = owner_role.name if owner_role else "owner"
+
+    user_org = OrganizationMember(
+        user_id=user.id,
+        organization_id=org.id,
+        role_id=role_id,
+        role_name=role_name,
+        invitation_status="accepted"
     )
     db.add(user_org)
+    
+    # Also update organization owner reference
+    org.owner_id = user.id
+    
     await db.commit()
 
     # Send verification email
@@ -90,7 +106,8 @@ async def register_user(db: AsyncSession, register_data: UserRegister) -> User:
         select(User)
         .where(User.id == user.id)
         .options(
-            selectinload(User.organizations).selectinload(UserOrganization.organization)
+            selectinload(User.organizations).selectinload(OrganizationMember.organization),
+            selectinload(User.organizations).selectinload(OrganizationMember.role).selectinload(Role.permissions)
         )
     )
     result_user = await db.execute(stmt_user)
@@ -246,10 +263,25 @@ async def handle_google_user_provisioning(db: AsyncSession, profile: dict) -> Us
     db.add(user)
     await db.flush()
 
-    user_org = UserOrganization(
-        user_id=user.id, organization_id=org.id, role_name="owner"
+    # Fetch owner role
+    stmt_role = select(Role).where(Role.name == "Organization Owner")
+    res_role = await db.execute(stmt_role)
+    owner_role = res_role.scalar_one_or_none()
+    role_id = owner_role.id if owner_role else None
+    role_name = owner_role.name if owner_role else "owner"
+
+    user_org = OrganizationMember(
+        user_id=user.id,
+        organization_id=org.id,
+        role_id=role_id,
+        role_name=role_name,
+        invitation_status="accepted"
     )
     db.add(user_org)
+    
+    # Update organization owner reference
+    org.owner_id = user.id
+    
     await db.commit()
 
     logger.info(f"Provisioned new user account via Google login: {email}")
@@ -259,7 +291,8 @@ async def handle_google_user_provisioning(db: AsyncSession, profile: dict) -> Us
         select(User)
         .where(User.id == user.id)
         .options(
-            selectinload(User.organizations).selectinload(UserOrganization.organization)
+            selectinload(User.organizations).selectinload(OrganizationMember.organization),
+            selectinload(User.organizations).selectinload(OrganizationMember.role).selectinload(Role.permissions)
         )
     )
     result_user = await db.execute(stmt_user)

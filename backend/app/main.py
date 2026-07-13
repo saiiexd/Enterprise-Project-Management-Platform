@@ -26,23 +26,34 @@ async def lifespan(_app: FastAPI):
     # Startup actions
     logger.info("Starting up Enterprise Project Management Platform...")
 
-    # 1. Verify PostgreSQL Database connectivity
-    try:
-        async with engine.begin() as conn:
-            await conn.execute(text("SELECT 1"))
-        logger.info("Successfully connected to the PostgreSQL Database.")
-    except Exception as e:
-        logger.critical(f"Failed to connect to PostgreSQL Database: {e}")
-        # In a real environment, we might raise or allow startup if it is temporary
+    import sys
+    if "pytest" not in sys.modules:
+        # 1. Verify PostgreSQL Database connectivity
+        try:
+            async with engine.begin() as conn:
+                await conn.execute(text("SELECT 1"))
+            logger.info("Successfully connected to the PostgreSQL Database.")
+        except Exception as e:
+            logger.critical(f"Failed to connect to PostgreSQL Database: {e}")
 
-    # 2. Verify Redis connectivity
-    try:
-        redis_client = Redis.from_url(settings.REDIS_URL)
-        await redis_client.ping()
-        await redis_client.close()
-        logger.info("Successfully connected to Redis.")
-    except Exception as e:
-        logger.critical(f"Failed to connect to Redis: {e}")
+        # 2. Verify Redis connectivity
+        try:
+            redis_client = Redis.from_url(settings.REDIS_URL)
+            await redis_client.ping()
+            await redis_client.close()
+            logger.info("Successfully connected to Redis.")
+        except Exception as e:
+            logger.critical(f"Failed to connect to Redis: {e}")
+
+        # 3. Seed default roles and permissions
+        try:
+            from app.core.database import SessionLocal
+            from app.modules.auth.seeds import seed_roles_and_permissions
+            async with SessionLocal() as db:
+                await seed_roles_and_permissions(db)
+            logger.info("Database seeded successfully.")
+        except Exception as e:
+            logger.error(f"Failed to seed roles and permissions: {e}")
 
     yield
 
@@ -159,7 +170,14 @@ async def v1_health_check() -> dict[str, Any]:
 
 
 from app.modules.auth.router import router as auth_router
+from app.modules.organizations.router import router as organizations_router
+from app.modules.teams.router import router as teams_router
+from app.modules.invitations.router import router as invitations_router
 
 v1_router.include_router(auth_router)
+v1_router.include_router(organizations_router)
+v1_router.include_router(teams_router)
+v1_router.include_router(invitations_router)
 
 app.include_router(v1_router)
+
