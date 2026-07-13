@@ -1,0 +1,42 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Backend Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff black mypy pytest pytest-asyncio
+          if [ -f backend/pyproject.toml ]; then pip install -e ./backend; fi
+
+      - name: Backend Lint check (Ruff)
+        run: |
+          ruff check backend/app
+
+      - name: Backend Format check (Black)
+        run: |
+          black --check backend/app
+
+      - name: Backend Type check (mypy)
+        run: |
+          mypy backend/app
+
+      - name: Run Backend Tests
+        run: |
+          pytest backend/tests

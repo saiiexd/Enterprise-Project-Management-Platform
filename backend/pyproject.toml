@@ -1,0 +1,52 @@
+[tool.poetry]
+name = "epmp-backend"
+version = "0.1.0"
+description = "Enterprise Project Management Platform Backend"
+authors = ["Enterprise Dev Team"]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+fastapi = "^0.111.0"
+uvicorn = {extras = ["standard"], version = "^0.29.0"}
+pydantic = "^2.8.2"
+pydantic-settings = "^2.3.4"
+sqlalchemy = {extras = ["asyncio"], version = "^2.0.31"}
+asyncpg = "^0.31.0"
+alembic = "^1.13.2"
+redis = "^5.0.7"
+pyjwt = {extras = ["crypto"], version = "^2.8.0"}
+passlib = {extras = ["bcrypt"], version = "^1.7.4"}
+python-multipart = "^0.0.9"
+httpx = "^0.27.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.4.0"
+pytest-asyncio = "^0.21.1"
+ruff = "^0.0.280"
+black = "^23.7.0"
+mypy = "^1.13.0"
+isort = "^5.12.0"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 88
+target-version = ['py311']
+
+[tool.isort]
+profile = "black"
+line_length = 88
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+select = ["E", "F", "I", "N", "UP", "B", "C4", "ARG", "PTH"]
+ignore = []
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+ignore_missing_imports = true
+exclude = ["migrations"]

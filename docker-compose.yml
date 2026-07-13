@@ -1,0 +1,113 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: epmp-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: epmp
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d epmp"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - epmp-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: epmp-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - epmp-network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: epmp-backend
+    restart: always
+    volumes:
+      - ./backend:/app
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=development
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@db:5432/epmp
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=supersecretkeychangethisinproduction1234567890!
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - epmp-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: epmp-frontend
+    restart: always
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1
+      - NODE_ENV=development
+    depends_on:
+      - backend
+    networks:
+      - epmp-network
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: epmp-pgadmin
+    restart: always
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@epmp.local
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    depends_on:
+      - db
+    networks:
+      - epmp-network
+
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: epmp-mailhog
+    restart: always
+    ports:
+      - "8025:8025" # HTTP Admin UI
+      - "1025:1025" # SMTP Port
+    networks:
+      - epmp-network
+
+volumes:
+  pgdata:
+  redisdata:
+
+networks:
+  epmp-network:
+    driver: bridge
