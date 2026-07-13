@@ -158,4 +158,8 @@ async def v1_health_check() -> dict[str, Any]:
     return await health_check()
 
 
+from app.modules.auth.router import router as auth_router
+
+v1_router.include_router(auth_router)
+
 app.include_router(v1_router)
